@@ -211,6 +211,10 @@ backend/media/
 backend/staticfiles/
 backend/logs/
 
+# Windows reserved device names (artifacts from incorrect redirections)
+nul
+backend/nul
+
 .claude
 FEATURE_GUIDE.md
 IMPLEMENTATION_PLAN.md

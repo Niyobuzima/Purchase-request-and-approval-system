@@ -7,7 +7,6 @@ import os
 import base64
 import logging
 from pathlib import Path
-from typing import Tuple
 
 import fitz  # PyMuPDF
 import pdfplumber
@@ -54,7 +53,7 @@ def get_mime_type(file_path: str) -> str:
     return mime_types.get(file_ext, 'image/jpeg')
 
 
-def pdf_to_image(pdf_path: str, output_path: str = None) -> str:
+def pdf_to_image(pdf_path: str, output_path: str | None = None) -> str:
     """
     Convert first page of PDF to image using PyMuPDF.
     Cross-platform, no external dependencies.

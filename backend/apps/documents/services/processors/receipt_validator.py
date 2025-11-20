@@ -57,14 +57,15 @@ class ReceiptValidator:
         logger.info(f"Extracting receipt data from: {file_path}")
 
         # Similar to proforma extraction
-        file_ext = Path(file_path).suffix.lower()
+        file_path_obj = Path(file_path)
+        file_ext = file_path_obj.suffix.lower()
 
         if file_ext == '.pdf':
             # Extract text
             text_context = self._extract_text_from_pdf(file_path)
 
-            # Convert to image using PyMuPDF
-            temp_image_path = file_path.replace('.pdf', '_temp.png')
+            # Convert to image using PyMuPDF with proper path handling
+            temp_image_path = file_path_obj.parent / f"{file_path_obj.stem}_temp.png"
 
             try:
                 # Open PDF with PyMuPDF
@@ -78,17 +79,17 @@ class ReceiptValidator:
                 zoom = 2.0
                 mat = fitz.Matrix(zoom, zoom)
                 pix = first_page.get_pixmap(matrix=mat)
-                pix.save(temp_image_path)
+                pix.save(str(temp_image_path))
                 pdf_document.close()
 
                 logger.info(f"Converted receipt PDF to image: {temp_image_path}")
 
-                receipt_data = self._extract_receipt_with_ai(temp_image_path, text_context)
+                receipt_data = self._extract_receipt_with_ai(str(temp_image_path), text_context)
                 return receipt_data
 
             finally:
-                if os.path.exists(temp_image_path):
-                    os.remove(temp_image_path)
+                if temp_image_path.exists():
+                    temp_image_path.unlink()
         else:
             # Image file
             text_context = "No text extraction available for image files."
@@ -187,6 +188,38 @@ All numeric values must be numbers, not strings.
         discrepancies = []
         is_valid = True
 
+        def _safe_float(raw_value, field_name, context=None):
+            """Safely convert a raw value to float, recording a discrepancy on failure.
+
+            Args:
+                raw_value: The raw input value to convert.
+                field_name: Logical field name (e.g., 'total', 'unit_price').
+                context: Optional additional context (e.g., item name).
+            Returns:
+                float value (0.0 if parsing fails)
+            """
+            try:
+                # Allow numeric strings and numbers; strip if string
+                if isinstance(raw_value, str):
+                    raw_stripped = raw_value.strip()
+                    if raw_stripped == '':
+                        raise ValueError('Empty string')
+                    return float(raw_stripped)
+                return float(raw_value)
+            except (ValueError, TypeError) as e:
+                logger.warning(
+                    f"Failed to parse float for field '{field_name}' (context={context}) raw_value='{raw_value}': {e}"
+                )
+                discrepancies.append({
+                    'type': 'VALUE_PARSE_ERROR',
+                    'severity': 'LOW',
+                    'field': field_name,
+                    'context': context,
+                    'raw_value': raw_value,
+                    'message': f"Could not parse numeric value for field '{field_name}'. Using 0.0 default."
+                })
+                return 0.0
+
         # Compare vendor
         receipt_vendor = receipt_data.get('vendor_name', '').lower()
         po_vendor = po_data.get('vendor', {}).get('name', '').lower()
@@ -202,9 +235,9 @@ All numeric values must be numbers, not strings.
             })
             is_valid = False
 
-        # Compare total amount with tolerance
-        receipt_total = float(receipt_data.get('total', 0))
-        po_total = float(po_data.get('total', 0))
+        # Compare total amount with tolerance (guarded conversion)
+        receipt_total = _safe_float(receipt_data.get('total', 0), 'total', context='receipt')
+        po_total = _safe_float(po_data.get('total', 0), 'total', context='po')
 
         if receipt_total > 0 and po_total > 0:
             difference = abs(receipt_total - po_total)
@@ -247,9 +280,9 @@ All numeric values must be numbers, not strings.
                 })
                 # Don't invalidate for extra items, just flag them
             else:
-                # Compare quantities
-                receipt_qty = float(receipt_item.get('quantity', 0))
-                po_qty = float(matched_po_item.get('quantity', 0))
+                # Compare quantities (guarded)
+                receipt_qty = _safe_float(receipt_item.get('quantity', 0), 'quantity', context=receipt_item.get('name'))
+                po_qty = _safe_float(matched_po_item.get('quantity', 0), 'quantity', context=matched_po_item.get('name'))
 
                 if receipt_qty != po_qty:
                     discrepancies.append({
@@ -262,9 +295,9 @@ All numeric values must be numbers, not strings.
                         'message': f"Quantity mismatch for '{receipt_item.get('name')}'"
                     })
 
-                # Compare unit prices with tolerance
-                receipt_price = float(receipt_item.get('unit_price', 0))
-                po_price = float(matched_po_item.get('unit_price', 0))
+                # Compare unit prices with tolerance (guarded)
+                receipt_price = _safe_float(receipt_item.get('unit_price', 0), 'unit_price', context=receipt_item.get('name'))
+                po_price = _safe_float(matched_po_item.get('unit_price', 0), 'unit_price', context=matched_po_item.get('name'))
 
                 if receipt_price > 0 and po_price > 0:
                     price_diff = abs(receipt_price - po_price)

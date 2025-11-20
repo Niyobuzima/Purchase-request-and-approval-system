@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from celery import shared_task
 from django.core.files.base import ContentFile
 from django.db import transaction
+from django.utils import timezone
 
 from apps.purchase_requests.models import PurchaseRequest
 from .services.processors import ProformaExtractor, POGenerator, ReceiptValidator
@@ -253,8 +254,7 @@ def cleanup_old_documents():
     try:
         logger.info("Starting cleanup of old documents")
 
-        # Find completed requests older than 90 days
-        cutoff_date = datetime.now() - timedelta(days=90)
+        cutoff_date = timezone.now() - timedelta(days=90)
 
         old_requests = PurchaseRequest.objects.filter(
             status='COMPLETED',

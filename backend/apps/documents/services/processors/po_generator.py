@@ -4,7 +4,9 @@ Generates professional PDF documents from approved purchase requests.
 """
 
 import logging
+from copy import deepcopy
 from datetime import datetime
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from io import BytesIO
 from typing import Dict, Tuple
 
@@ -70,6 +72,9 @@ class POGenerator:
             'approved_by': self._get_approver_info(purchase_request),
             'notes': purchase_request.description or ''
         }
+
+        # Normalize numeric fields to preserve precision (e.g., fractional quantities)
+        po_data = self._normalize_po_data(po_data)
 
         # Generate PDF
         pdf_file = self._generate_pdf(po_data)
@@ -174,13 +179,18 @@ class POGenerator:
 
         # Table rows
         for idx, item in enumerate(po_data['items'], 1):
+            item_name = item.get('name', '')
+            quantity_value = self._safe_decimal(item.get('quantity', 0), 'item.quantity', context=item_name)
+            unit_price_value = self._safe_decimal(item.get('unit_price', 0), 'item.unit_price', context=item_name)
+            total_value = self._safe_decimal(item.get('total', 0), 'item.total', context=item_name)
+
             table_data.append([
                 str(idx),
-                item['name'][:30],  # Truncate long names
+                item_name[:30],  # Truncate long names
                 item.get('description', '')[:40],  # Truncate long descriptions
-                str(int(item['quantity'])),
-                f"{item['unit_price']:,.2f}",
-                f"{item['total']:,.2f}"
+                self._format_quantity(quantity_value),
+                self._format_currency(unit_price_value),
+                self._format_currency(total_value)
             ])
 
         # Create table
@@ -209,17 +219,20 @@ class POGenerator:
         # Totals (right-aligned)
         totals_x = right_margin - 150
         c.setFont("Helvetica", 10)
+        subtotal_value = self._safe_decimal(po_data.get('subtotal', 0), 'subtotal')
         c.drawString(totals_x, y_position, "Subtotal:")
-        c.drawString(totals_x + 80, y_position, f"{po_data['currency']} {po_data['subtotal']:,.2f}")
+        c.drawString(totals_x + 80, y_position, f"{po_data['currency']} {self._format_currency(subtotal_value)}")
         y_position -= 15
 
+        tax_value = self._safe_decimal(po_data.get('tax', 0), 'tax')
         c.drawString(totals_x, y_position, "Tax:")
-        c.drawString(totals_x + 80, y_position, f"{po_data['currency']} {po_data['tax']:,.2f}")
+        c.drawString(totals_x + 80, y_position, f"{po_data['currency']} {self._format_currency(tax_value)}")
         y_position -= 15
 
         c.setFont("Helvetica-Bold", 11)
+        total_value = self._safe_decimal(po_data.get('total', 0), 'total')
         c.drawString(totals_x, y_position, "TOTAL:")
-        c.drawString(totals_x + 80, y_position, f"{po_data['currency']} {po_data['total']:,.2f}")
+        c.drawString(totals_x + 80, y_position, f"{po_data['currency']} {self._format_currency(total_value)}")
 
         y_position -= 30
 
@@ -272,3 +285,76 @@ class POGenerator:
         pdf_content = ContentFile(buffer.read(), name=f"{po_data['po_number']}.pdf")
 
         return pdf_content
+
+    def _normalize_po_data(self, po_data: Dict) -> Dict:
+        """Sanitize and normalize numeric fields, preserving fractional quantities."""
+        normalized = deepcopy(po_data)
+
+        normalized_items = []
+        for item in po_data.get('items', []):
+            item_copy = dict(item)
+            item_name = item_copy.get('name', 'Unknown Item')
+
+            quantity_value = self._safe_decimal(item_copy.get('quantity', 0), 'item.quantity', context=item_name)
+            unit_price_value = self._safe_decimal(item_copy.get('unit_price', 0), 'item.unit_price', context=item_name)
+            total_value = self._safe_decimal(item_copy.get('total', 0), 'item.total', context=item_name)
+
+            item_copy['quantity'] = self._decimal_to_serializable(quantity_value)
+            item_copy['unit_price'] = self._decimal_to_serializable(unit_price_value, places=2)
+            item_copy['total'] = self._decimal_to_serializable(total_value, places=2)
+            normalized_items.append(item_copy)
+
+        normalized['items'] = normalized_items
+        normalized['subtotal'] = self._decimal_to_serializable(self._safe_decimal(po_data.get('subtotal', 0), 'subtotal'), places=2)
+        normalized['tax'] = self._decimal_to_serializable(self._safe_decimal(po_data.get('tax', 0), 'tax'), places=2)
+        normalized['total'] = self._decimal_to_serializable(self._safe_decimal(po_data.get('total', 0), 'total'), places=2)
+
+        return normalized
+
+    def _safe_decimal(self, value, field_name: str, context: str | None = None, default: Decimal = Decimal('0')) -> Decimal:
+        """Convert a raw value to Decimal, logging issues and falling back to default."""
+        if isinstance(value, Decimal):
+            return value
+
+        try:
+            if isinstance(value, str):
+                cleaned = value.strip().replace(',', '')
+                if cleaned == '':
+                    raise InvalidOperation('empty string')
+                return Decimal(cleaned)
+
+            if isinstance(value, (int, float)):
+                return Decimal(str(value))
+
+            return Decimal(str(value))
+        except (InvalidOperation, ValueError, TypeError) as exc:
+            logger.warning(
+                "Failed to parse decimal for field '%s' (context=%s) raw_value='%s': %s",
+                field_name,
+                context,
+                value,
+                exc
+            )
+            return default
+
+    def _decimal_to_serializable(self, value: Decimal, places: int | None = None) -> str:
+        """Convert Decimal to a JSON-serializable string while preserving precision."""
+        if places is not None:
+            quant = Decimal(10) ** -places
+            value = value.quantize(quant, rounding=ROUND_HALF_UP)
+            return f"{value:.{places}f}"
+
+        normalized = value.normalize()
+        text = format(normalized, 'f')
+        if '.' in text:
+            text = text.rstrip('0').rstrip('.')
+        return text or '0'
+
+    def _format_quantity(self, value: Decimal) -> str:
+        """Format quantity for PDF output without dropping fractional parts."""
+        return self._decimal_to_serializable(value, places=None)
+
+    def _format_currency(self, value: Decimal) -> str:
+        """Format currency values with two decimal places and thousands separator."""
+        quantized = value.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        return f"{quantized:,.2f}"
