@@ -14,7 +14,7 @@ def main():
         "config.asgi:application",
         "--reload",
         "--host", "localhost",
-        "--port", "8000"
+        "--port", "8080"
     ]))
 
 
