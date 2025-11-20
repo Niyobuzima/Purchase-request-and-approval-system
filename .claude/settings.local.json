@@ -13,7 +13,10 @@
       "Bash(timeout 5 uv run:*)",
       "Bash(uv run python:*)",
       "Bash(PYTHONDONTWRITEBYTECODE=1 uv run python:*)",
-      "Bash(python -c:*)"
+      "Bash(python -c:*)",
+      "Bash(timeout 3 uv run:*)",
+      "Bash(timeout 2 uv run:*)",
+      "Bash(taskkill:*)"
     ],
     "deny": [],
     "ask": []
