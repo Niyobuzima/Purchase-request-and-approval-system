@@ -9,7 +9,11 @@
       "Bash(chmod:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(uv pip install:*)"
+      "Bash(uv pip install:*)",
+      "Bash(timeout 5 uv run:*)",
+      "Bash(uv run python:*)",
+      "Bash(PYTHONDONTWRITEBYTECODE=1 uv run python:*)",
+      "Bash(python -c:*)"
     ],
     "deny": [],
     "ask": []

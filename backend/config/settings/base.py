@@ -4,15 +4,19 @@ Django base settings for Purchase Request & Approval System
 import os
 from pathlib import Path
 from datetime import timedelta
-from decouple import config
+from decouple import config, Csv
 
 # Build paths
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 # Security Settings
 SECRET_KEY = config('SECRET_KEY', default='django-insecure-change-this-in-production')
-DEBUG = config('DEBUG', default=True, cast=bool)
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1').split(',')
+
+# Handle DEBUG - use string comparison to avoid boolean cast issues
+DEBUG_VALUE = config('DEBUG', default='True')
+DEBUG = DEBUG_VALUE.lower() in ('true', '1', 'yes', 'on')
+
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=Csv())
 
 # Application definition
 INSTALLED_APPS = [
@@ -85,7 +89,8 @@ DATABASES = {
 }
 
 # Custom User Model
-AUTH_USER_MODEL = 'accounts.User'
+# TODO: Uncomment after creating User model in apps.accounts
+# AUTH_USER_MODEL = 'accounts.User'
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [

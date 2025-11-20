@@ -35,5 +35,5 @@ CORS_ALLOW_ALL_ORIGINS = True
 LOGGING['loggers']['django']['level'] = 'DEBUG'
 LOGGING['loggers']['apps']['level'] = 'DEBUG'
 
-print(f"🚀 Running in DEVELOPMENT mode")
-print(f"📊 Database: {DATABASES['default']['NAME']} on {DATABASES['default']['HOST']}")
+print(f">> Running in DEVELOPMENT mode")
+print(f">> Database: {DATABASES['default']['NAME']} on {DATABASES['default']['HOST']}")
