@@ -68,12 +68,12 @@ Write-Host ""
 Write-Host "4. Create superuser:" -ForegroundColor White
 Write-Host "   uv run python manage.py createsuperuser" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "5. Start development server with uvicorn:" -ForegroundColor White
-Write-Host "   uv run uvicorn config.asgi:application --reload --host 0.0.0.0 --port 8000" -ForegroundColor Cyan
+Write-Host "5. Start development server:" -ForegroundColor White
+Write-Host "   uv run dev" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Available uv run commands:" -ForegroundColor White
-Write-Host "   uv run uvicorn config.asgi:application --reload --host 0.0.0.0 --port 8000" -ForegroundColor Cyan
-Write-Host "   uv run python manage.py migrate" -ForegroundColor Cyan
+Write-Host "   uv run dev                          # Start dev server with hot reload" -ForegroundColor Cyan
+Write-Host "   uv run python manage.py migrate    # Run migrations" -ForegroundColor Cyan
 Write-Host "   uv run python manage.py makemigrations" -ForegroundColor Cyan
 Write-Host "   uv run python manage.py shell" -ForegroundColor Cyan
 Write-Host "   uv run python manage.py createsuperuser" -ForegroundColor Cyan

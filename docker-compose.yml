@@ -38,7 +38,7 @@ services:
   backend:
     build: ./backend
     container_name: procure_backend
-    command: python manage.py runserver 0.0.0.0:8000
+    command: uvicorn config.asgi:application --host 0.0.0.0 --port 8000 --reload
     volumes:
       - ./backend:/app
       - media_files:/app/media
