@@ -148,6 +148,7 @@ class PurchaseRequestDetailSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = PurchaseRequest
+        exclude = []  # Use all fields
         fields = [
             'id',
             'title',
@@ -179,8 +180,10 @@ class PurchaseRequestDetailSerializer(serializers.ModelSerializer):
             'total_amount',
             'created_by',
             'proforma_extracted_data',
-            'purchase_order_file',
+            'proforma_file',  # Read-only because we use SerializerMethodField
+            'purchase_order_file',  # Read-only because we use SerializerMethodField
             'purchase_order_data',
+            'receipt_file',  # Read-only because we use SerializerMethodField
             'receipt_data',
             'receipt_validation',
             'created_at',

@@ -31,9 +31,25 @@ EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 # Less restrictive CORS for development
 CORS_ALLOW_ALL_ORIGINS = True
 
+# Disable all caching in development
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.dummy.DummyCache',
+    }
+}
+
+# Disable template caching
+TEMPLATES[0]['OPTIONS']['debug'] = True
+
+# Disable Python bytecode caching
+import sys
+sys.dont_write_bytecode = True
+
 # Logging - More verbose in development
 LOGGING['loggers']['django']['level'] = 'DEBUG'
 LOGGING['loggers']['apps']['level'] = 'DEBUG'
 
 print(f">> Running in DEVELOPMENT mode")
 print(f">> Database: {DATABASES['default']['NAME']} on {DATABASES['default']['HOST']}")
+print(f">> Python bytecode caching: DISABLED")
+print(f">> Django caching: DISABLED (DummyCache)")

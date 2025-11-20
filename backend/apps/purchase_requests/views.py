@@ -33,6 +33,8 @@ from .permissions import (
     CanUploadReceipt,
     CanAccessPO,
 )
+from apps.approvals.models import ApprovalLog
+from apps.approvals.serializers import ApprovalLogSerializer
 
 
 @swagger_auto_schema(
@@ -282,6 +284,15 @@ class PurchaseRequestViewSet(viewsets.ModelViewSet):
             instance.current_approval_level = 1
             instance.save(update_fields=['status', 'current_approval_level', 'updated_at'])
 
+            # Create approval log entry for submission
+            ApprovalLog.objects.create(
+                request=instance,
+                approver=request.user,
+                approval_level=0,  # 0 indicates submission
+                action='SUBMITTED',
+                comments=''
+            )
+
         # Return updated representation
         serializer = PurchaseRequestDetailSerializer(instance, context={'request': request})
         return Response({
@@ -344,14 +355,14 @@ class PurchaseRequestViewSet(viewsets.ModelViewSet):
                 # from apps.documents.tasks import generate_purchase_order
                 # generate_purchase_order.delay(str(instance.id))
 
-            # TODO: Create approval log entry
-            # ApprovalLog.objects.create(
-            #     request=instance,
-            #     approver=request.user,
-            #     approval_level=request.user.approval_level,
-            #     action='APPROVED',
-            #     comments=comments
-            # )
+            # Create approval log entry
+            ApprovalLog.objects.create(
+                request=instance,
+                approver=request.user,
+                approval_level=request.user.approval_level,
+                action='APPROVED',
+                comments=comments
+            )
 
         # Return updated representation
         detail_serializer = PurchaseRequestDetailSerializer(instance, context={'request': request})
@@ -401,14 +412,14 @@ class PurchaseRequestViewSet(viewsets.ModelViewSet):
             instance.status = 'REJECTED'
             instance.save(update_fields=['status', 'updated_at'])
 
-            # TODO: Create approval log entry
-            # ApprovalLog.objects.create(
-            #     request=instance,
-            #     approver=request.user,
-            #     approval_level=request.user.approval_level,
-            #     action='REJECTED',
-            #     comments=comments
-            # )
+            # Create approval log entry
+            ApprovalLog.objects.create(
+                request=instance,
+                approver=request.user,
+                approval_level=request.user.approval_level,
+                action='REJECTED',
+                comments=comments
+            )
 
         # Return updated representation
         detail_serializer = PurchaseRequestDetailSerializer(instance, context={'request': request})
@@ -546,16 +557,13 @@ class PurchaseRequestViewSet(viewsets.ModelViewSet):
         """
         instance = self.get_object()
 
-        # TODO: Return approval logs
-        # from apps.approvals.models import ApprovalLog
-        # from apps.approvals.serializers import ApprovalLogSerializer
-        # logs = ApprovalLog.objects.filter(request=instance).select_related('approver')
-        # serializer = ApprovalLogSerializer(logs, many=True)
+        # Get approval logs for this request
+        logs = ApprovalLog.objects.filter(request=instance).select_related('approver')
+        serializer = ApprovalLogSerializer(logs, many=True)
 
         return Response({
             'status': 'success',
-            'message': 'Approval history will be available once ApprovalLog model is implemented',
-            'data': []
+            'data': serializer.data
         })
 
 
