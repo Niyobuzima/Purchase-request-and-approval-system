@@ -63,29 +63,25 @@ Write-Host "2. Start Docker services:" -ForegroundColor White
 Write-Host "   cd .. && docker-compose up -d db redis" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "3. Run migrations:" -ForegroundColor White
-Write-Host "   uv run python scripts.py migrate" -ForegroundColor Cyan
+Write-Host "   uv run python manage.py migrate" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "4. Create superuser:" -ForegroundColor White
-Write-Host "   uv run python scripts.py createsuperuser" -ForegroundColor Cyan
+Write-Host "   uv run python manage.py createsuperuser" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "5. Start development server with uvicorn:" -ForegroundColor White
-Write-Host "   uv run python scripts.py dev" -ForegroundColor Cyan
+Write-Host "   uv run uvicorn config.asgi:application --reload --host 0.0.0.0 --port 8000" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "Available commands (via scripts.py):" -ForegroundColor White
-Write-Host "   uv run python scripts.py dev              # Start dev server with hot reload" -ForegroundColor Cyan
-Write-Host "   uv run python scripts.py migrate          # Run migrations" -ForegroundColor Cyan
-Write-Host "   uv run python scripts.py makemigrations   # Create migrations" -ForegroundColor Cyan
-Write-Host "   uv run python scripts.py shell            # Django shell" -ForegroundColor Cyan
-Write-Host "   uv run python scripts.py test             # Run tests" -ForegroundColor Cyan
-Write-Host "   uv run python scripts.py coverage         # Test coverage" -ForegroundColor Cyan
-Write-Host "   uv run python scripts.py format           # Format code" -ForegroundColor Cyan
-Write-Host "   uv run python scripts.py lint             # Lint code" -ForegroundColor Cyan
-Write-Host "   uv run python scripts.py celery-worker    # Start Celery worker" -ForegroundColor Cyan
-Write-Host ""
-Write-Host "Or use direct commands:" -ForegroundColor White
+Write-Host "Available uv run commands:" -ForegroundColor White
 Write-Host "   uv run uvicorn config.asgi:application --reload --host 0.0.0.0 --port 8000" -ForegroundColor Cyan
 Write-Host "   uv run python manage.py migrate" -ForegroundColor Cyan
+Write-Host "   uv run python manage.py makemigrations" -ForegroundColor Cyan
+Write-Host "   uv run python manage.py shell" -ForegroundColor Cyan
+Write-Host "   uv run python manage.py createsuperuser" -ForegroundColor Cyan
 Write-Host "   uv run pytest" -ForegroundColor Cyan
+Write-Host "   uv run pytest --cov=apps --cov-report=html" -ForegroundColor Cyan
+Write-Host "   uv run black apps/ config/ core/" -ForegroundColor Cyan
+Write-Host "   uv run flake8 apps/ config/ core/" -ForegroundColor Cyan
+Write-Host "   uv run celery -A config worker -l info" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Or use Docker to run everything:" -ForegroundColor White
 Write-Host "   cd .. && docker-compose up --build" -ForegroundColor Cyan
