@@ -89,8 +89,7 @@ DATABASES = {
 }
 
 # Custom User Model
-# TODO: Uncomment after creating User model in apps.accounts
-# AUTH_USER_MODEL = 'accounts.User'
+AUTH_USER_MODEL = 'accounts.User'
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
@@ -182,6 +181,22 @@ SIMPLE_JWT = {
     'TOKEN_TYPE_CLAIM': 'token_type',
 }
 
+# Swagger/OpenAPI Settings
+SWAGGER_SETTINGS = {
+    'USE_SESSION_AUTH': False,  # Disable Django session authentication
+    'SECURITY_DEFINITIONS': {
+        'Bearer': {
+            'type': 'apiKey',
+            'name': 'Authorization',
+            'in': 'header',
+            'description': 'JWT Authorization header using the Bearer scheme. Example: "Bearer {token}"'
+        }
+    },
+    'LOGIN_URL': None,  # Disable login URL
+    'LOGOUT_URL': None,  # Disable logout URL
+    'PERSIST_AUTH': True,  # Persist authorization between page refreshes
+}
+
 # CORS Settings
 CORS_ALLOWED_ORIGINS = config(
     'CORS_ALLOWED_ORIGINS',
@@ -199,16 +214,35 @@ CELERY_TIMEZONE = TIME_ZONE
 CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = 30 * 60  # 30 minutes
 
-# Redis Cache
-CACHES = {
-    'default': {
-        'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': config('REDIS_URL', default='redis://localhost:6379/1'),
-        'OPTIONS': {
-            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+# Cache Configuration
+# Use Upstash Redis for production, local memory for development
+USE_UPSTASH = config('USE_UPSTASH', default=False, cast=bool)
+
+if USE_UPSTASH:
+    # Upstash Redis - serverless Redis
+    # Set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN in .env
+    CACHES = {
+        'default': {
+            'BACKEND': 'core.cache.UpstashRedisCache',
+            'KEY_PREFIX': 'procure',
+            'VERSION': 1,
+            'OPTIONS': {
+                'UPSTASH_REDIS_REST_URL': config('UPSTASH_REDIS_REST_URL'),
+                'UPSTASH_REDIS_REST_TOKEN': config('UPSTASH_REDIS_REST_TOKEN'),
+            }
         }
     }
-}
+else:
+    # Standard Redis for local development
+    CACHES = {
+        'default': {
+            'BACKEND': 'django_redis.cache.RedisCache',
+            'LOCATION': config('REDIS_URL', default='redis://localhost:6379/1'),
+            'OPTIONS': {
+                'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+            }
+        }
+    }
 
 # Email Configuration
 EMAIL_BACKEND = config('EMAIL_BACKEND', default='django.core.mail.backends.console.EmailBackend')

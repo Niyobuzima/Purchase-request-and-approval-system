@@ -6,6 +6,10 @@ from .base import *
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
+# Enable Upstash Redis by default in production
+# Set USE_UPSTASH=False in .env to use standard Redis instead
+USE_UPSTASH = config('USE_UPSTASH', default=True, cast=bool)
+
 # Must specify allowed hosts in production
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='').split(',')
 
