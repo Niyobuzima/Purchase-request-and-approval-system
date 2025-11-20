@@ -2,6 +2,7 @@
 Django base settings for Purchase Request & Approval System
 """
 import os
+import ssl
 from pathlib import Path
 from datetime import timedelta
 from decouple import config, Csv
@@ -34,6 +35,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'drf_yasg',
     'django_filters',
+    'django_celery_results',
 
     # Local apps
     'apps.accounts',
@@ -205,14 +207,21 @@ CORS_ALLOWED_ORIGINS = config(
 CORS_ALLOW_CREDENTIALS = True
 
 # Celery Configuration
+# Using Upstash Redis for broker (message queue) and Django DB for results
 CELERY_BROKER_URL = config('CELERY_BROKER_URL', default='redis://localhost:6379/0')
-CELERY_RESULT_BACKEND = config('CELERY_RESULT_BACKEND', default='redis://localhost:6379/0')
+CELERY_RESULT_BACKEND = config('CELERY_RESULT_BACKEND', default='django-db')
+CELERY_CACHE_BACKEND = 'django-cache'
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = TIME_ZONE
 CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = 30 * 60  # 30 minutes
+
+# Celery Upstash Redis SSL Configuration
+CELERY_BROKER_USE_SSL = {
+    'ssl_cert_reqs': ssl.CERT_REQUIRED
+} if config('CELERY_BROKER_URL', default='').startswith('rediss://') else None
 
 # Cache Configuration
 # Use Upstash Redis for production, local memory for development
