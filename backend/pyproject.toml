@@ -50,24 +50,6 @@ dependencies = [
     "pytz>=2024.1",
 ]
 
-[project.scripts]
-# Development commands using uv run
-dev = "uvicorn config.asgi:application --reload --host 0.0.0.0 --port 8000"
-migrate = "python:manage.main(['migrate'])"
-makemigrations = "python:manage.main(['makemigrations'])"
-shell = "python:manage.main(['shell'])"
-createsuperuser = "python:manage.main(['createsuperuser'])"
-
-# Celery commands
-celery-worker = "celery -A config worker -l info"
-celery-beat = "celery -A config beat -l info"
-
-# Testing & Quality
-test = "pytest"
-coverage = "pytest --cov=apps --cov-report=html --cov-report=term-missing"
-format = "black apps/ config/ core/ && isort apps/ config/ core/"
-lint = "flake8 apps/ config/ core/"
-
 [project.optional-dependencies]
 dev = [
     "black>=24.1.1",
@@ -87,6 +69,10 @@ prod = [
 [build-system]
 requires = ["setuptools>=68.0"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["apps*", "config*", "core*"]
+exclude = ["*.tests", "*.tests.*", "tests.*", "tests", "static*", "media*", "templates*"]
 
 [tool.black]
 line-length = 100
