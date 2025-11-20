@@ -5,6 +5,8 @@ Extracts structured data from proforma invoices (PDF and images).
 
 import json
 import logging
+import os
+import re
 from pathlib import Path
 from typing import Dict
 
@@ -69,25 +71,21 @@ class ProformaExtractor:
         temp_image_path = pdf_path.replace('.pdf', '_temp.png')
 
         try:
-            # Open PDF with PyMuPDF
-            pdf_document = fitz.open(pdf_path)
+            # Open PDF with PyMuPDF using context manager
+            with fitz.open(pdf_path) as pdf_document:
+                if len(pdf_document) == 0:
+                    raise RuntimeError("PDF has no pages")
 
-            if len(pdf_document) == 0:
-                raise RuntimeError("PDF has no pages")
+                # Get first page
+                first_page = pdf_document[0]
 
-            # Get first page
-            first_page = pdf_document[0]
+                # Render page to image (zoom factor 2.0 = 144 DPI, good quality)
+                zoom = 2.0
+                mat = fitz.Matrix(zoom, zoom)
+                pix = first_page.get_pixmap(matrix=mat)
 
-            # Render page to image (zoom factor 2.0 = 144 DPI, good quality)
-            zoom = 2.0
-            mat = fitz.Matrix(zoom, zoom)
-            pix = first_page.get_pixmap(matrix=mat)
-
-            # Save as PNG
-            pix.save(temp_image_path)
-
-            # Close PDF
-            pdf_document.close()
+                # Save as PNG
+                pix.save(temp_image_path)
 
             logger.info(f"Converted PDF to image: {temp_image_path}")
 
@@ -97,7 +95,6 @@ class ProformaExtractor:
 
         finally:
             # Clean up temp image
-            import os
             if os.path.exists(temp_image_path):
                 os.remove(temp_image_path)
 
@@ -203,10 +200,10 @@ class ProformaExtractor:
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse JSON response: {str(e)}")
             logger.error(f"Raw response: {raw_json}")
-            raise RuntimeError(f"Invalid JSON response from AI: {str(e)}")
+            raise RuntimeError(f"Invalid JSON response from AI: {str(e)}") from e
         except Exception as e:
             logger.error(f"AI extraction failed: {str(e)}", exc_info=True)
-            raise RuntimeError(f"AI extraction failed: {str(e)}")
+            raise RuntimeError(f"AI extraction failed: {str(e)}") from e
 
     def _create_extraction_prompt(self, text_context: str) -> str:
         """Create the extraction prompt for GPT."""
@@ -294,7 +291,6 @@ class ProformaExtractor:
                     
                     # Strip any trailing non-numeric text (e.g., "2 units" -> "2")
                     # Find first sequence of digits with optional decimal point
-                    import re
                     match = re.search(r'[-+]?\d*\.?\d+', cleaned)
                     if match:
                         cleaned = match.group(0)

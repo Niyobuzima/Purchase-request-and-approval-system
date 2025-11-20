@@ -529,8 +529,8 @@ def get_task_status(request):
         }, status=status.HTTP_200_OK)
 
     except Exception as e:
-        logger.error(f"Failed to get task status for {task_id}: {str(e)}")
+        logger.exception(f"Failed to get task status for {task_id}")
         return Response({
             'status': 'error',
-            'message': f'Failed to get task status: {str(e)}'
+            'message': f'Failed to get task status: {e}'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
