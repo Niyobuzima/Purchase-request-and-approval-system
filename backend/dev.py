@@ -13,7 +13,7 @@ def main():
         "uvicorn",
         "config.asgi:application",
         "--reload",
-        "--host", "0.0.0.0",
+        "--host", "localhost",
         "--port", "8000"
     ]))
 
