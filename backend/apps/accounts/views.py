@@ -20,6 +20,7 @@ from .permissions import IsAdmin
 User = get_user_model()
 
 
+@swagger_auto_schema(tags=['Authentication'])
 class RegisterView(generics.CreateAPIView):
     """
     API endpoint for user registration.
@@ -41,6 +42,7 @@ class RegisterView(generics.CreateAPIView):
         return super().post(request, *args, **kwargs)
 
 
+@swagger_auto_schema(tags=['Authentication'])
 class CustomTokenObtainPairView(TokenObtainPairView):
     """
     API endpoint for obtaining JWT token pair (access + refresh).
@@ -70,6 +72,7 @@ class CustomTokenObtainPairView(TokenObtainPairView):
         return super().post(request, *args, **kwargs)
 
 
+@swagger_auto_schema(tags=['Authentication'])
 class LogoutView(APIView):
     """
     API endpoint for user logout.
@@ -115,6 +118,7 @@ class LogoutView(APIView):
             )
 
 
+@swagger_auto_schema(tags=['User Profile'])
 class UserProfileView(generics.RetrieveUpdateAPIView):
     """
     API endpoint for viewing and updating user profile.
@@ -156,6 +160,7 @@ class UserProfileView(generics.RetrieveUpdateAPIView):
         return super().patch(request, *args, **kwargs)
 
 
+@swagger_auto_schema(tags=['User Profile'])
 class ChangePasswordView(APIView):
     """
     API endpoint for changing user password.
@@ -188,6 +193,7 @@ class ChangePasswordView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+@swagger_auto_schema(tags=['User Management'])
 class UserListView(generics.ListAPIView):
     """
     API endpoint for listing all users.
@@ -210,6 +216,7 @@ class UserListView(generics.ListAPIView):
         return super().get(request, *args, **kwargs)
 
 
+@swagger_auto_schema(tags=['User Management'])
 class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
     """
     API endpoint for viewing, updating, or deleting a specific user.
@@ -256,6 +263,7 @@ class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
         return super().delete(request, *args, **kwargs)
 
 
+@swagger_auto_schema(tags=['User Management'])
 class UsersByRoleView(APIView):
     """
     API endpoint for getting users filtered by role.

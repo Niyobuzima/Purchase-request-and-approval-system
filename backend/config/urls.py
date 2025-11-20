@@ -40,7 +40,7 @@ urlpatterns = [
 
     # API endpoints
     path('api/auth/', include('apps.accounts.urls')),
-    # path('api/requests/', include('apps.purchase_requests.urls')),
+    path('api/', include('apps.purchase_requests.urls')),
     # path('api/approvals/', include('apps.approvals.urls')),
     # path('api/documents/', include('apps.documents.urls')),
 ]
