@@ -454,13 +454,13 @@ def get_validation_report(request):
                 'message': 'You do not have permission to view this data'
             }, status=status.HTTP_403_FORBIDDEN)
 
-        if not purchase_request.receipt_validation_data:
+        if not purchase_request.receipt_validation:
             return Response({
                 'status': 'error',
                 'message': 'No validation data available. Please validate the receipt first.'
             }, status=status.HTTP_404_NOT_FOUND)
 
-        serializer = ValidationReportSerializer(purchase_request.receipt_validation_data)
+        serializer = ValidationReportSerializer(purchase_request.receipt_validation)
 
         return Response({
             'status': 'success',

@@ -198,7 +198,7 @@ def validate_receipt(self, request_id):
 
         # Save validation report
         with transaction.atomic():
-            purchase_request.receipt_validation_data = validation_report
+            purchase_request.receipt_validation = validation_report
 
             # Update status based on validation
             if validation_report['is_valid']:
@@ -212,7 +212,7 @@ def validate_receipt(self, request_id):
                     f"{validation_report['discrepancies_count']} discrepancies found"
                 )
 
-            purchase_request.save(update_fields=['receipt_validation_data', 'status', 'updated_at'])
+            purchase_request.save(update_fields=['receipt_validation', 'status', 'updated_at'])
 
         return {
             'status': 'success',

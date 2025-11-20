@@ -253,6 +253,66 @@ class ProformaExtractor:
     def _validate_extracted_data(self, data: Dict) -> Dict:
         """Validate and normalize extracted data."""
 
+        def _safe_float(value, field_name: str = "unknown") -> float:
+            """
+            Safely convert any value to float with robust parsing.
+            
+            Handles:
+            - None/empty values -> 0.0
+            - Strings with thousands separators (1,000 -> 1000.0)
+            - Currency symbols ($1,000 -> 1000.0)
+            - Whitespace and non-numeric suffixes (e.g., "2 units" -> 2.0)
+            
+            Args:
+                value: Input value to parse
+                field_name: Name of field being parsed (for logging)
+            
+            Returns:
+                Parsed float value or 0.0 on failure
+            """
+            # Handle None or empty
+            if value is None or value == '':
+                return 0.0
+            
+            # Already a number
+            if isinstance(value, (int, float)):
+                return float(value)
+            
+            # Try to parse string
+            if isinstance(value, str):
+                try:
+                    # Strip whitespace
+                    cleaned = value.strip()
+                    
+                    # Remove common currency symbols and thousands separators
+                    cleaned = cleaned.replace(',', '')
+                    cleaned = cleaned.replace('$', '')
+                    cleaned = cleaned.replace('€', '')
+                    cleaned = cleaned.replace('£', '')
+                    cleaned = cleaned.replace('RWF', '')
+                    cleaned = cleaned.replace('USD', '')
+                    
+                    # Strip any trailing non-numeric text (e.g., "2 units" -> "2")
+                    # Find first sequence of digits with optional decimal point
+                    import re
+                    match = re.search(r'[-+]?\d*\.?\d+', cleaned)
+                    if match:
+                        cleaned = match.group(0)
+                    
+                    # Convert to float
+                    return float(cleaned)
+                    
+                except (ValueError, AttributeError) as e:
+                    logger.warning(f"Failed to parse float for field '{field_name}' from value '{value}': {e}")
+                    return 0.0
+            
+            # Fallback for unexpected types
+            try:
+                return float(value)
+            except (ValueError, TypeError) as e:
+                logger.warning(f"Failed to convert '{type(value).__name__}' to float for field '{field_name}': {e}")
+                return 0.0
+
         # Ensure required top-level keys exist
         required_keys = ['vendor', 'invoice_number', 'date', 'items', 'subtotal', 'tax', 'total', 'currency', 'payment_terms']
         for key in required_keys:
@@ -280,27 +340,41 @@ class ProformaExtractor:
         if not isinstance(data['items'], list):
             data['items'] = []
 
-        # Validate each item
+        # Validate each item with robust parsing
         validated_items = []
         for item in data['items']:
             if isinstance(item, dict):
+                # Parse numeric fields safely
+                quantity = _safe_float(item.get('quantity', 0), 'item.quantity')
+                unit_price = _safe_float(item.get('unit_price', 0), 'item.unit_price')
+                item_total = _safe_float(item.get('total', 0), 'item.total')
+                
+                # Recalculate total to ensure accuracy; prefer computed value if parsing failed
+                computed_total = quantity * unit_price
+                if item_total == 0.0 and computed_total > 0.0:
+                    item_total = computed_total
+                elif abs(computed_total - item_total) > 0.01:  # Allow small rounding
+                    logger.warning(
+                        f"Item total mismatch for '{item.get('name', 'unknown')}': "
+                        f"computed={computed_total:.2f}, extracted={item_total:.2f}. Using computed."
+                    )
+                    item_total = computed_total
+                
                 validated_item = {
                     'name': item.get('name', ''),
                     'description': item.get('description', ''),
-                    'quantity': float(item.get('quantity', 0)),
-                    'unit_price': float(item.get('unit_price', 0)),
-                    'total': float(item.get('total', 0))
+                    'quantity': quantity,
+                    'unit_price': unit_price,
+                    'total': item_total
                 }
-                # Recalculate total to ensure accuracy
-                validated_item['total'] = validated_item['quantity'] * validated_item['unit_price']
                 validated_items.append(validated_item)
 
         data['items'] = validated_items
 
-        # Ensure numeric fields are numbers
-        data['subtotal'] = float(data.get('subtotal', 0))
-        data['tax'] = float(data.get('tax', 0))
-        data['total'] = float(data.get('total', 0))
+        # Ensure numeric fields are numbers with safe parsing
+        data['subtotal'] = _safe_float(data.get('subtotal', 0), 'subtotal')
+        data['tax'] = _safe_float(data.get('tax', 0), 'tax')
+        data['total'] = _safe_float(data.get('total', 0), 'total')
 
         # Recalculate totals to ensure accuracy
         calculated_subtotal = sum(item['total'] for item in data['items'])

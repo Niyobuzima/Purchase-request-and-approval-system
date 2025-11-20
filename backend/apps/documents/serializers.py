@@ -23,9 +23,9 @@ class ProformaDataSerializer(serializers.Serializer):
         child=serializers.DictField(),
         help_text="List of invoice items"
     )
-    subtotal = serializers.FloatField(help_text="Subtotal amount")
-    tax = serializers.FloatField(help_text="Tax amount")
-    total = serializers.FloatField(help_text="Total amount")
+    subtotal = serializers.DecimalField(max_digits=12, decimal_places=2, coerce_to_string=False, help_text="Subtotal amount")
+    tax = serializers.DecimalField(max_digits=12, decimal_places=2, coerce_to_string=False, help_text="Tax amount")
+    total = serializers.DecimalField(max_digits=12, decimal_places=2, coerce_to_string=False, help_text="Total amount")
     currency = serializers.CharField(help_text="Currency code")
     payment_terms = serializers.CharField(help_text="Payment terms")
 
@@ -50,9 +50,9 @@ class PODataSerializer(serializers.Serializer):
         child=serializers.DictField(),
         help_text="List of PO items"
     )
-    subtotal = serializers.FloatField(help_text="Subtotal amount")
-    tax = serializers.FloatField(help_text="Tax amount")
-    total = serializers.FloatField(help_text="Total amount")
+    subtotal = serializers.DecimalField(max_digits=12, decimal_places=2, coerce_to_string=False, help_text="Subtotal amount")
+    tax = serializers.DecimalField(max_digits=12, decimal_places=2, coerce_to_string=False, help_text="Tax amount")
+    total = serializers.DecimalField(max_digits=12, decimal_places=2, coerce_to_string=False, help_text="Total amount")
     currency = serializers.CharField(help_text="Currency code")
     payment_terms = serializers.CharField(help_text="Payment terms")
     delivery_terms = serializers.CharField(help_text="Delivery terms")
@@ -76,8 +76,8 @@ class DiscrepancySerializer(serializers.Serializer):
     message = serializers.CharField(help_text="Human-readable description")
     expected = serializers.Field(required=False, help_text="Expected value")
     actual = serializers.Field(required=False, help_text="Actual value")
-    difference = serializers.FloatField(required=False, help_text="Numeric difference")
-    tolerance = serializers.FloatField(required=False, help_text="Allowed tolerance")
+    difference = serializers.DecimalField(max_digits=12, decimal_places=2, coerce_to_string=False, required=False, help_text="Numeric difference")
+    tolerance = serializers.DecimalField(max_digits=12, decimal_places=2, coerce_to_string=False, required=False, help_text="Allowed tolerance")
     item_name = serializers.CharField(required=False, help_text="Item name (for item-level discrepancies)")
 
 

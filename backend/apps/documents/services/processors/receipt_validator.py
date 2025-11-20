@@ -68,19 +68,17 @@ class ReceiptValidator:
             temp_image_path = file_path_obj.parent / f"{file_path_obj.stem}_temp.png"
 
             try:
-                # Open PDF with PyMuPDF
-                pdf_document = fitz.open(file_path)
+                # Open PDF with PyMuPDF using context manager
+                with fitz.open(file_path) as pdf_document:
+                    if len(pdf_document) == 0:
+                        raise RuntimeError("Receipt PDF has no pages")
 
-                if len(pdf_document) == 0:
-                    raise RuntimeError("Receipt PDF has no pages")
-
-                # Get first page and convert to image
-                first_page = pdf_document[0]
-                zoom = 2.0
-                mat = fitz.Matrix(zoom, zoom)
-                pix = first_page.get_pixmap(matrix=mat)
-                pix.save(str(temp_image_path))
-                pdf_document.close()
+                    # Get first page and convert to image
+                    first_page = pdf_document[0]
+                    zoom = 2.0
+                    mat = fitz.Matrix(zoom, zoom)
+                    pix = first_page.get_pixmap(matrix=mat)
+                    pix.save(str(temp_image_path))
 
                 logger.info(f"Converted receipt PDF to image: {temp_image_path}")
 
@@ -256,9 +254,27 @@ All numeric values must be numbers, not strings.
                 })
                 is_valid = False
 
-        # Compare items
-        po_items = {item['name'].lower(): item for item in po_data.get('items', [])}
-        receipt_items = receipt_data.get('items', [])
+        # Compare items - sanitize and validate item structures
+        po_items_raw = po_data.get('items', [])
+        receipt_items_raw = receipt_data.get('items', [])
+        
+        # Build PO items dict only from valid dict entries with non-empty name
+        po_items = {}
+        if isinstance(po_items_raw, list):
+            for item in po_items_raw:
+                if isinstance(item, dict):
+                    item_name = item.get('name', '')
+                    if isinstance(item_name, str) and item_name.strip():
+                        po_items[item_name.lower()] = item
+        
+        # Process receipt items, skipping invalid entries
+        receipt_items = []
+        if isinstance(receipt_items_raw, list):
+            for item in receipt_items_raw:
+                if isinstance(item, dict):
+                    item_name = item.get('name', '')
+                    if isinstance(item_name, str) and item_name.strip():
+                        receipt_items.append(item)
 
         for receipt_item in receipt_items:
             item_name = receipt_item.get('name', '').lower()
@@ -294,6 +310,7 @@ All numeric values must be numbers, not strings.
                         'actual': receipt_qty,
                         'message': f"Quantity mismatch for '{receipt_item.get('name')}'"
                     })
+                    is_valid = False  # Mark invalid on quantity mismatch
 
                 # Compare unit prices with tolerance (guarded)
                 receipt_price = _safe_float(receipt_item.get('unit_price', 0), 'unit_price', context=receipt_item.get('name'))
@@ -315,14 +332,19 @@ All numeric values must be numbers, not strings.
                             'tolerance': price_tolerance,
                             'message': f"Price mismatch for '{receipt_item.get('name')}'"
                         })
+                        is_valid = False  # Mark invalid on price mismatch
 
         # Check for missing items (items in PO but not in receipt)
-        receipt_item_names = [item.get('name', '').lower() for item in receipt_items]
-        for po_item in po_data.get('items', []):
-            po_item_name = po_item['name'].lower()
-
+        # Build receipt_item_names from valid named items
+        receipt_item_names = []
+        for item in receipt_items:
+            item_name = item.get('name', '')
+            if isinstance(item_name, str) and item_name.strip():
+                receipt_item_names.append(item_name.lower())
+        
+        for po_item_name_lower, po_item in po_items.items():
             # Check if PO item is in receipt
-            found = any(po_item_name in receipt_name or receipt_name in po_item_name
+            found = any(po_item_name_lower in receipt_name or receipt_name in po_item_name_lower
                        for receipt_name in receipt_item_names)
 
             if not found:
@@ -330,8 +352,8 @@ All numeric values must be numbers, not strings.
                     'type': 'ITEM_MISSING_FROM_RECEIPT',
                     'severity': 'HIGH',
                     'field': 'items',
-                    'item_name': po_item['name'],
-                    'message': f"Item '{po_item['name']}' in PO but not found in receipt"
+                    'item_name': po_item.get('name', 'Unknown'),
+                    'message': f"Item '{po_item.get('name', 'Unknown')}' in PO but not found in receipt"
                 })
                 is_valid = False
 

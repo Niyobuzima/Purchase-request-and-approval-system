@@ -69,24 +69,20 @@ def pdf_to_image(pdf_path: str, output_path: str | None = None) -> str:
         output_path = pdf_path.replace('.pdf', '_temp.png')
     
     try:
-        pdf_document = fitz.open(pdf_path)
-        
-        if len(pdf_document) == 0:
-            raise RuntimeError("PDF has no pages")
-        
-        # Get first page
-        first_page = pdf_document[0]
-        
-        # Render to image at 144 DPI (zoom=2.0 for good quality)
-        zoom = 2.0
-        mat = fitz.Matrix(zoom, zoom)
-        pix = first_page.get_pixmap(matrix=mat)
-        
-        # Save as PNG
-        pix.save(output_path)
-        
-        # Close PDF
-        pdf_document.close()
+        with fitz.open(pdf_path) as pdf_document:
+            if len(pdf_document) == 0:
+                raise RuntimeError("PDF has no pages")
+            
+            # Get first page
+            first_page = pdf_document[0]
+            
+            # Render to image at 144 DPI (zoom=2.0 for good quality)
+            zoom = 2.0
+            mat = fitz.Matrix(zoom, zoom)
+            pix = first_page.get_pixmap(matrix=mat)
+            
+            # Save as PNG
+            pix.save(output_path)
         
         logger.info(f"Converted PDF to image: {output_path}")
         return output_path
