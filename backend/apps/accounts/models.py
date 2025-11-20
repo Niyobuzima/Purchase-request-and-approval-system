@@ -153,21 +153,39 @@ class User(AbstractBaseUser, PermissionsMixin):
         return False
 
     def save(self, *args, **kwargs):
-        """Override save to set approval_level and employee_id."""
-        # Set approval level based on role
-        if self.role == 'APPROVER_L1':
-            self.approval_level = 1
-        elif self.role == 'APPROVER_L2':
-            self.approval_level = 2
+        """Override save to set approval_level and employee_id.
+
+        Respects update_fields to avoid conflicts with Django's internal saves.
+        """
+        update_fields = kwargs.get('update_fields', None)
+
+        # Handle partial updates (when update_fields is specified)
+        if update_fields is not None:
+            # For partial updates, ensure we don't modify fields that aren't in update_fields
+            # Reload the original values from DB to prevent Django from detecting unwanted changes
+            if self.pk and ('approval_level' not in update_fields or 'is_staff' not in update_fields):
+                # Get current DB values for fields we shouldn't modify
+                db_instance = User.objects.filter(pk=self.pk).values('approval_level', 'is_staff').first()
+                if db_instance:
+                    if 'approval_level' not in update_fields:
+                        self.approval_level = db_instance['approval_level']
+                    if 'is_staff' not in update_fields:
+                        self.is_staff = db_instance['is_staff']
         else:
-            self.approval_level = None
+            # Full save - set approval level based on role
+            if self.role == 'APPROVER_L1':
+                self.approval_level = 1
+            elif self.role == 'APPROVER_L2':
+                self.approval_level = 2
+            else:
+                self.approval_level = None
 
-        # Admins should have staff access
-        if self.role == 'ADMIN':
-            self.is_staff = True
+            # Admins should have staff access
+            if self.role == 'ADMIN':
+                self.is_staff = True
 
-        # Auto-generate employee_id if not provided
-        if not self.employee_id:
+        # Auto-generate employee_id if not provided (only on full save)
+        if not self.employee_id and update_fields is None:
             from django.db import transaction, IntegrityError
             from django.db.models import Max
             from django.db.models.functions import Cast, Replace
@@ -208,4 +226,5 @@ class User(AbstractBaseUser, PermissionsMixin):
                     # Exponential backoff with jitter
                     time.sleep(0.1 * (2 ** attempt) + random.uniform(0, 0.1))
         else:
+            # Normal save (either employee_id exists or partial field update)
             super().save(*args, **kwargs)
