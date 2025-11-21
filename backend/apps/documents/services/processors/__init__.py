@@ -2,7 +2,7 @@
 Document processing services.
 
 This module provides intelligent document processing capabilities:
-- Proforma invoice extraction using GPT-5 Vision
+- Proforma invoice extraction using GPT-5
 - Purchase Order PDF generation
 - Receipt validation against PO data
 """
