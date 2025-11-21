@@ -10,7 +10,7 @@ export type RequestStatus =
   | 'PENDING'
   | 'APPROVED'
   | 'REJECTED'
-  | 'CANCELLED';
+  | 'COMPLETED';
 
 export interface RequestItem {
   id?: string;
