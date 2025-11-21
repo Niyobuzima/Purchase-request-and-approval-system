@@ -43,6 +43,7 @@ def compare_items(
         if not matched_po_item:
             # Extra item in receipt
             builder.add_extra_item(receipt_item['name'])
+            all_items_valid = False
             continue
 
         # Compare quantity

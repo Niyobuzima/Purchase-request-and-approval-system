@@ -28,15 +28,43 @@ def compare_totals(
         tolerance_percent: Acceptable tolerance percentage
 
     Returns:
-        True if totals match within tolerance, False otherwise
+        True if totals match within tolerance, False otherwise.
+        Returns False if either total is missing, invalid, or zero,
+        and records an appropriate discrepancy.
     """
     receipt_total = safe_float(receipt_data.get('total', 0), 'receipt_total')
     po_total = safe_float(po_data.get('total', 0), 'po_total')
 
-    # Skip if either total is zero
-    if receipt_total <= 0 or po_total <= 0:
-        logger.warning("Total comparison skipped: zero total detected")
-        return True
+    # Check for missing or invalid totals
+    if receipt_total <= 0 and po_total <= 0:
+        logger.warning("Both totals are zero or missing")
+        builder.add_missing_data(
+            field='total',
+            expected=po_total,
+            actual=receipt_total,
+            message='Both receipt and PO totals are missing or invalid'
+        )
+        return False
+    
+    if receipt_total <= 0:
+        logger.warning("Receipt total is zero or missing")
+        builder.add_missing_data(
+            field='total',
+            expected=po_total,
+            actual=receipt_total,
+            message='Receipt total is missing or invalid'
+        )
+        return False
+    
+    if po_total <= 0:
+        logger.warning("PO total is zero or missing")
+        builder.add_missing_data(
+            field='total',
+            expected=po_total,
+            actual=receipt_total,
+            message='PO total is missing or invalid'
+        )
+        return False
 
     # Check if within tolerance
     if is_within_tolerance(receipt_total, po_total, tolerance_percent):

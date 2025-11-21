@@ -7,18 +7,18 @@ from decimal import Decimal, ROUND_HALF_UP
 from typing import Union
 
 
-def format_currency(value: Union[Decimal, float], decimals: int = 2) -> str:
+def format_currency(value: Union[Decimal, float, int], decimals: int = 2) -> str:
     """
     Format number as currency with thousand separators.
 
     Args:
-        value: Numeric value to format
+        value: Numeric value to format (Decimal, float, or int)
         decimals: Number of decimal places
 
     Returns:
         Formatted currency string (e.g., "1,234.56")
     """
-    if isinstance(value, float):
+    if not isinstance(value, Decimal):
         value = Decimal(str(value))
 
     quantized = value.quantize(

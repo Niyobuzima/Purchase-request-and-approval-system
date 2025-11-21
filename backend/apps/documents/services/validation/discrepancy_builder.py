@@ -33,6 +33,23 @@ class DiscrepancyBuilder:
         })
         return self
 
+    def add_vendor_missing(
+        self,
+        expected: Optional[str],
+        actual: Optional[str],
+        message: Optional[str] = None
+    ) -> 'DiscrepancyBuilder':
+        """Add missing vendor data discrepancy."""
+        self.discrepancies.append({
+            'type': 'VENDOR_MISSING',
+            'severity': 'HIGH',
+            'field': 'vendor',
+            'expected': expected or 'Not provided',
+            'actual': actual or 'Not provided',
+            'message': message or 'Vendor information is missing or empty'
+        })
+        return self
+
     def add_total_mismatch(
         self,
         expected: Union[Decimal, float],
@@ -123,6 +140,25 @@ class DiscrepancyBuilder:
             'field': 'items',
             'item_name': item_name,
             'message': message or f"'{item_name}' in receipt but not in PO"
+        })
+        return self
+
+    def add_missing_data(
+        self,
+        field: str,
+        expected: Union[str, int, float, None],
+        actual: Union[str, int, float, None],
+        message: str,
+        severity: str = 'HIGH'
+    ) -> 'DiscrepancyBuilder':
+        """Add missing or invalid data discrepancy."""
+        self.discrepancies.append({
+            'type': 'DATA_MISSING_OR_INVALID',
+            'severity': severity,
+            'field': field,
+            'expected': expected,
+            'actual': actual,
+            'message': message
         })
         return self
 

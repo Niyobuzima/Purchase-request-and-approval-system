@@ -80,12 +80,12 @@ def extract_with_vision_api(
         return extracted_data
 
     except json.JSONDecodeError as e:
-        logger.exception(f"Failed to parse JSON response: {str(e)}")
-        raise RuntimeError(f"Invalid JSON in API response: {str(e)}")
+        logger.exception(f"Failed to parse JSON response")
+        raise RuntimeError(f"Invalid JSON in API response") from e
 
     except Exception as e:
-        logger.exception(f"Vision API extraction failed: {str(e)}")
-        raise RuntimeError(f"Failed to extract document data: {str(e)}")
+        logger.exception(f"Openai API extraction failed")
+        raise RuntimeError(f"Failed to extract document data") from e
 
 
 def _extract_response_text(response) -> Optional[str]:

@@ -36,18 +36,42 @@ class ReceiptValidator:
             po_data: Purchase order data dict
 
         Returns:
-            Validation report dict with discrepancies
+            Validation report dict with discrepancies and validation status.
+            If extraction fails, returns a structured failure report with:
+            - is_valid: False
+            - error: Error message describing the failure
+            - discrepancies: Empty list
         """
         logger.info(f"Starting receipt validation for PO: {po_data.get('po_number')}")
 
-        # Extract receipt data using AI
-        receipt_data = self._extract_receipt_data(receipt_file_path)
+        try:
+            # Extract receipt data using AI
+            receipt_data = self._extract_receipt_data(receipt_file_path)
 
-        # Compare and validate
-        validation_report = self._compare_receipt_with_po(receipt_data, po_data)
+            # Compare and validate
+            validation_report = self._compare_receipt_with_po(receipt_data, po_data)
 
-        logger.info(f"Validation complete. Valid: {validation_report['is_valid']}")
-        return validation_report
+            logger.info(f"Validation complete. Valid: {validation_report['is_valid']}")
+            return validation_report
+
+        except RuntimeError as e:
+            logger.error(f"Receipt extraction failed: {str(e)}")
+            return {
+                'is_valid': False,
+                'error': f'Failed to extract receipt data: {str(e)}',
+                'discrepancies': [],
+                'receipt_data': None,
+                'po_data': po_data
+            }
+        except Exception as e:
+            logger.exception(f"Unexpected error during receipt validation: {str(e)}")
+            return {
+                'is_valid': False,
+                'error': f'Validation error: {str(e)}',
+                'discrepancies': [],
+                'receipt_data': None,
+                'po_data': po_data
+            }
 
     def _extract_receipt_data(self, file_path: str) -> Dict:
         """Extract data from receipt using AI vision."""
