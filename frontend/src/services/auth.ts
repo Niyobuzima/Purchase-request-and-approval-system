@@ -4,17 +4,29 @@
  */
 
 import api from '../lib/api';
-import { LoginCredentials, RegisterData, AuthTokens, User } from '../types/user';
+import type { LoginCredentials, RegisterData, AuthTokens, User } from '../types/user';
 
 export const authService = {
   async login(credentials: LoginCredentials): Promise<{ tokens: AuthTokens; user: User }> {
     const response = await api.post('/auth/login/', credentials);
-    return response.data;
+    return {
+      tokens: {
+        access: response.data.access,
+        refresh: response.data.refresh,
+      },
+      user: response.data.user,
+    };
   },
 
   async register(data: RegisterData): Promise<{ tokens: AuthTokens; user: User }> {
     const response = await api.post('/auth/register/', data);
-    return response.data;
+    return {
+      tokens: {
+        access: response.data.access,
+        refresh: response.data.refresh,
+      },
+      user: response.data.user,
+    };
   },
 
   async logout(): Promise<void> {

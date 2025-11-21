@@ -3,7 +3,7 @@
  * Defines request status, items, and data structures.
  */
 
-import { User } from './user';
+import type { User } from './user';
 
 export type RequestStatus =
   | 'DRAFT'
