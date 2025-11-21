@@ -14,6 +14,7 @@ from drf_yasg import openapi
 from apps.purchase_requests.models import PurchaseRequest
 from ..serializers import ProformaProcessingSerializer, ProformaDataSerializer
 from ..tasks import process_proforma_document
+from ..utils import validate_uuid_param
 
 logger = logging.getLogger(__name__)
 
@@ -118,13 +119,12 @@ def process_proforma(request):
 @permission_classes([IsAuthenticated])
 def get_proforma_data(request):
     """Get extracted proforma data for a purchase request."""
-    request_id = request.query_params.get('request_id')
-
-    if not request_id:
-        return Response({
-            'status': 'error',
-            'message': 'request_id parameter is required'
-        }, status=status.HTTP_400_BAD_REQUEST)
+    request_id_str = request.query_params.get('request_id')
+    
+    # Validate UUID format
+    request_id, error_response = validate_uuid_param(request_id_str)
+    if error_response:
+        return error_response
 
     try:
         purchase_request = PurchaseRequest.objects.get(id=request_id)

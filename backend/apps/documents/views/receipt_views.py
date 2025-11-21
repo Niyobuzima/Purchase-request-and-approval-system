@@ -14,6 +14,7 @@ from drf_yasg import openapi
 from apps.purchase_requests.models import PurchaseRequest
 from ..serializers import ReceiptValidationSerializer, ValidationReportSerializer
 from ..tasks import validate_receipt
+from ..utils import validate_uuid_param
 
 logger = logging.getLogger(__name__)
 
@@ -125,13 +126,12 @@ def validate_receipt_api(request):
 @permission_classes([IsAuthenticated])
 def get_validation_report(request):
     """Get receipt validation report for a purchase request."""
-    request_id = request.query_params.get('request_id')
-
-    if not request_id:
-        return Response({
-            'status': 'error',
-            'message': 'request_id parameter is required'
-        }, status=status.HTTP_400_BAD_REQUEST)
+    request_id_str = request.query_params.get('request_id')
+    
+    # Validate UUID format
+    request_id, error_response = validate_uuid_param(request_id_str)
+    if error_response:
+        return error_response
 
     try:
         purchase_request = PurchaseRequest.objects.get(id=request_id)
