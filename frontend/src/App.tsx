@@ -3,17 +3,20 @@
  * Sets up routing, providers, and global application structure.
  */
 
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './context/AuthContext';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
+import { RootRedirect } from './components/auth/RootRedirect';
 import { Login } from './pages/auth/Login';
 import { Register } from './pages/auth/Register';
 import { Dashboard } from './pages/Dashboard';
 
 // Load token refresh testing utilities in development
 if (import.meta.env.DEV) {
-  import('./utils/testTokenRefresh');
+  import('./utils/testTokenRefresh').catch((err) => {
+    console.warn('Failed to load token refresh testing utilities:', err);
+  });
 }
 
 // Create React Query client
@@ -46,8 +49,8 @@ function App() {
               }
             />
 
-            {/* Default redirect */}
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            {/* Default redirect - checks auth to avoid redirect chain */}
+            <Route path="/" element={<RootRedirect />} />
 
             {/* 404 fallback */}
             <Route

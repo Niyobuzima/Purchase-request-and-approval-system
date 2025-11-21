@@ -59,6 +59,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
           });
         }
       } else {
+        // No tokens or user found, ensure localStorage is also cleared
+        authService.clearAuth();
         setState({
           user: null,
           tokens: null,
