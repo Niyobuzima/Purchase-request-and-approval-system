@@ -1,19 +1,16 @@
 """
 Receipt validation service using GPT-5 Vision.
-Validates receipts against purchase order data and generates discrepancy reports.
+Refactored to follow KISS and DRY principles with shared modules.
 """
 
-import json
 import logging
-import os
-from datetime import datetime
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict
 
-import fitz  # PyMuPDF
-import pdfplumber
-
-from .base import get_openai_client, encode_image, get_mime_type
+from ..shared.pdf_processing import extract_text_from_pdf, convert_pdf_to_image
+from ..shared.ai_extraction import extract_with_vision_api
+from ..validation import compare_vendors, compare_totals, compare_items
+from ..validation import DiscrepancyBuilder, generate_validation_report
 
 logger = logging.getLogger(__name__)
 
@@ -25,10 +22,10 @@ class ReceiptValidator:
     """
 
     def __init__(self):
-        self.model = "gpt-5"  # Using GPT-5 with Response API
+        self.model = "gpt-5"
         self.max_output_tokens = 2000
-        self.temperature = 0.1  # Lower temperature for more consistent validation
-        self.tolerance_percentage = 5.0  # 5% tolerance for price differences
+        self.temperature = 0.1
+        self.tolerance_percentage = 5.0
 
     def validate(self, receipt_file_path: str, po_data: Dict) -> Dict:
         """
@@ -39,82 +36,75 @@ class ReceiptValidator:
             po_data: Purchase order data dict
 
         Returns:
-            Validation report dict with discrepancies
+            Validation report dict with discrepancies and validation status.
+            If extraction fails, returns a structured failure report with:
+            - is_valid: False
+            - error: Error message describing the failure
+            - discrepancies: Empty list
         """
         logger.info(f"Starting receipt validation for PO: {po_data.get('po_number')}")
 
-        # Extract receipt data
-        receipt_data = self._extract_receipt_data(receipt_file_path)
+        try:
+            # Extract receipt data using AI
+            receipt_data = self._extract_receipt_data(receipt_file_path)
 
-        # Compare and validate
-        validation_report = self._compare_receipt_with_po(receipt_data, po_data)
+            # Compare and validate
+            validation_report = self._compare_receipt_with_po(receipt_data, po_data)
 
-        logger.info(f"Validation complete. Valid: {validation_report['is_valid']}")
-        return validation_report
+            logger.info(f"Validation complete. Valid: {validation_report['is_valid']}")
+            return validation_report
+
+        except RuntimeError as e:
+            logger.exception(f"Receipt extraction failed: {str(e)}")
+            return {
+                'is_valid': False,
+                'error': f'Failed to extract receipt data: {str(e)}',
+                'discrepancies': [],
+                'receipt_data': None,
+                'po_data': po_data
+            }
+        except Exception as e:
+            logger.exception(f"Unexpected error during receipt validation: {str(e)}")
+            return {
+                'is_valid': False,
+                'error': f'Validation error: {str(e)}',
+                'discrepancies': [],
+                'receipt_data': None,
+                'po_data': po_data
+            }
 
     def _extract_receipt_data(self, file_path: str) -> Dict:
-        """Extract data from receipt using AI vision and PyMuPDF (cross-platform)."""
+        """Extract data from receipt using AI vision."""
         logger.info(f"Extracting receipt data from: {file_path}")
 
-        # Similar to proforma extraction
         file_path_obj = Path(file_path)
         file_ext = file_path_obj.suffix.lower()
 
         if file_ext == '.pdf':
-            # Extract text
-            text_context = self._extract_text_from_pdf(file_path)
+            # Extract text context
+            text_context = extract_text_from_pdf(file_path, max_pages=2, max_chars=3000)
 
-            # Convert to image using PyMuPDF with proper path handling
-            temp_image_path = file_path_obj.parent / f"{file_path_obj.stem}_temp.png"
+            # Convert to image
+            temp_image_path = str(file_path_obj.parent / f"{file_path_obj.stem}_temp.png")
 
             try:
-                # Open PDF with PyMuPDF using context manager
-                with fitz.open(file_path) as pdf_document:
-                    if len(pdf_document) == 0:
-                        raise RuntimeError("Receipt PDF has no pages")
-
-                    # Get first page and convert to image
-                    first_page = pdf_document[0]
-                    zoom = 2.0
-                    mat = fitz.Matrix(zoom, zoom)
-                    pix = first_page.get_pixmap(matrix=mat)
-                    pix.save(str(temp_image_path))
-
-                logger.info(f"Converted receipt PDF to image: {temp_image_path}")
-
-                receipt_data = self._extract_receipt_with_ai(str(temp_image_path), text_context)
+                convert_pdf_to_image(file_path, temp_image_path, page_number=0, zoom=2.0)
+                receipt_data = self._extract_with_ai(temp_image_path, text_context)
                 return receipt_data
 
             finally:
-                if temp_image_path.exists():
-                    temp_image_path.unlink()
+                # Cleanup temp image
+                temp_image_obj = Path(temp_image_path)
+                if temp_image_obj.exists():
+                    temp_image_obj.unlink()
         else:
-            # Image file
-            text_context = "No text extraction available for image files."
-            return self._extract_receipt_with_ai(file_path, text_context)
+            # Image file - no text context
+            text_context = "Image file - no text extraction available."
+            return self._extract_with_ai(file_path, text_context)
 
-    def _extract_text_from_pdf(self, pdf_path: str) -> str:
-        """Extract text from PDF."""
-        try:
-            with pdfplumber.open(pdf_path) as pdf:
-                text_parts = []
-                for page in pdf.pages[:2]:
-                    text = page.extract_text()
-                    if text:
-                        text_parts.append(text)
-                return "\n\n".join(text_parts)[:3000]
-        except Exception as e:
-            logger.warning(f"Receipt text extraction failed: {str(e)}")
-            return ""
-
-    def _extract_receipt_with_ai(self, image_path: str, text_context: str) -> Dict:
-        """Extract receipt data using GPT Vision."""
-        logger.info("Calling OpenAI GPT Vision API for receipt extraction")
-
-        base64_image = encode_image(image_path)
-        mime_type = get_mime_type(image_path)
-
-        prompt = f"""Analyze this receipt/invoice document and extract the following information:
+    def _extract_with_ai(self, image_path: str, text_context: str) -> Dict:
+        """Extract receipt data using GPT Vision API."""
+        prompt = """Analyze this receipt/invoice document and extract the following information:
 
 1. Vendor name
 2. Receipt/Invoice number
@@ -129,263 +119,40 @@ class ReceiptValidator:
 7. Total amount
 8. Currency
 
-**Text Context:**
-{text_context[:1000]}
-
 Return ONLY a valid JSON object with these keys: vendor_name, receipt_number, date, items (array), subtotal, tax, total, currency.
 Each item should have: name, quantity, unit_price, total.
-All numeric values must be numbers, not strings.
-"""
+All numeric values must be numbers, not strings."""
 
-        try:
-            # Call OpenAI Response API with GPT-5 Vision
-            response = get_openai_client().responses.create(
-                model=self.model,
-                input=[
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "input_text", "text": prompt},
-                            {"type": "input_image", "image_url": f"data:{mime_type};base64,{base64_image}"}
-                        ]
-                    }
-                ],
-                temperature=self.temperature,
-                max_output_tokens=self.max_output_tokens,
-                response_format={"type": "json_object"}
-            )
-
-            # Extract JSON from Response API
-            raw_json = None
-            if hasattr(response, "output_text") and response.output_text:
-                raw_json = response.output_text
-            elif hasattr(response, "output"):
-                try:
-                    raw_json = response.output[0].content[0].text
-                except Exception:
-                    pass
-            if raw_json is None and hasattr(response, "choices"):
-                try:
-                    raw_json = response.choices[0].message.content
-                except Exception:
-                    pass
-
-            if not raw_json:
-                raise RuntimeError("OpenAI Response API did not contain expected text output")
-
-            receipt_data = json.loads(raw_json)
-            logger.info("Successfully extracted receipt data")
-            return receipt_data
-
-        except Exception as e:
-            logger.error(f"Receipt extraction failed: {str(e)}", exc_info=True)
-            raise RuntimeError(f"Failed to extract receipt data: {str(e)}")
+        return extract_with_vision_api(
+            image_path=image_path,
+            prompt=prompt,
+            text_context=text_context,
+            model=self.model,
+            temperature=self.temperature,
+            max_output_tokens=self.max_output_tokens
+        )
 
     def _compare_receipt_with_po(self, receipt_data: Dict, po_data: Dict) -> Dict:
         """Compare receipt data with PO data and identify discrepancies."""
-        discrepancies = []
+        builder = DiscrepancyBuilder()
         is_valid = True
 
-        def _safe_float(raw_value, field_name, context=None):
-            """Safely convert a raw value to float, recording a discrepancy on failure.
-
-            Args:
-                raw_value: The raw input value to convert.
-                field_name: Logical field name (e.g., 'total', 'unit_price').
-                context: Optional additional context (e.g., item name).
-            Returns:
-                float value (0.0 if parsing fails)
-            """
-            try:
-                # Allow numeric strings and numbers; strip if string
-                if isinstance(raw_value, str):
-                    raw_stripped = raw_value.strip()
-                    if raw_stripped == '':
-                        raise ValueError('Empty string')
-                    return float(raw_stripped)
-                return float(raw_value)
-            except (ValueError, TypeError) as e:
-                logger.warning(
-                    f"Failed to parse float for field '{field_name}' (context={context}) raw_value='{raw_value}': {e}"
-                )
-                discrepancies.append({
-                    'type': 'VALUE_PARSE_ERROR',
-                    'severity': 'LOW',
-                    'field': field_name,
-                    'context': context,
-                    'raw_value': raw_value,
-                    'message': f"Could not parse numeric value for field '{field_name}'. Using 0.0 default."
-                })
-                return 0.0
-
         # Compare vendor
-        receipt_vendor = receipt_data.get('vendor_name', '').lower()
-        po_vendor = po_data.get('vendor', {}).get('name', '').lower()
-
-        if receipt_vendor and po_vendor and receipt_vendor not in po_vendor and po_vendor not in receipt_vendor:
-            discrepancies.append({
-                'type': 'VENDOR_MISMATCH',
-                'severity': 'HIGH',
-                'field': 'vendor',
-                'expected': po_data.get('vendor', {}).get('name'),
-                'actual': receipt_data.get('vendor_name'),
-                'message': 'Vendor name does not match'
-            })
+        if not compare_vendors(receipt_data, po_data, builder):
             is_valid = False
 
-        # Compare total amount with tolerance (guarded conversion)
-        receipt_total = _safe_float(receipt_data.get('total', 0), 'total', context='receipt')
-        po_total = _safe_float(po_data.get('total', 0), 'total', context='po')
+        # Compare total amounts
+        if not compare_totals(receipt_data, po_data, builder, self.tolerance_percentage):
+            is_valid = False
 
-        if receipt_total > 0 and po_total > 0:
-            difference = abs(receipt_total - po_total)
-            tolerance = po_total * (self.tolerance_percentage / 100)
+        # Compare line items
+        if not compare_items(receipt_data, po_data, builder, self.tolerance_percentage):
+            is_valid = False
 
-            if difference > tolerance:
-                discrepancies.append({
-                    'type': 'TOTAL_MISMATCH',
-                    'severity': 'HIGH',
-                    'field': 'total',
-                    'expected': po_total,
-                    'actual': receipt_total,
-                    'difference': difference,
-                    'tolerance': tolerance,
-                    'message': f'Total amount differs by {difference:.2f} (tolerance: {tolerance:.2f})'
-                })
-                is_valid = False
-
-        # Compare items - sanitize and validate item structures
-        po_items_raw = po_data.get('items', [])
-        receipt_items_raw = receipt_data.get('items', [])
-        
-        # Build PO items dict only from valid dict entries with non-empty name
-        po_items = {}
-        if isinstance(po_items_raw, list):
-            for item in po_items_raw:
-                if isinstance(item, dict):
-                    item_name = item.get('name', '')
-                    if isinstance(item_name, str) and item_name.strip():
-                        po_items[item_name.lower()] = item
-        
-        # Process receipt items, skipping invalid entries
-        receipt_items = []
-        if isinstance(receipt_items_raw, list):
-            for item in receipt_items_raw:
-                if isinstance(item, dict):
-                    item_name = item.get('name', '')
-                    if isinstance(item_name, str) and item_name.strip():
-                        receipt_items.append(item)
-
-        for receipt_item in receipt_items:
-            item_name = receipt_item.get('name', '').lower()
-
-            # Try to find matching PO item
-            matched_po_item = None
-            for po_item_name, po_item in po_items.items():
-                if item_name in po_item_name or po_item_name in item_name:
-                    matched_po_item = po_item
-                    break
-
-            if not matched_po_item:
-                discrepancies.append({
-                    'type': 'ITEM_NOT_IN_PO',
-                    'severity': 'MEDIUM',
-                    'field': 'items',
-                    'item_name': receipt_item.get('name'),
-                    'message': f"Item '{receipt_item.get('name')}' found in receipt but not in PO"
-                })
-                # Don't invalidate for extra items, just flag them
-            else:
-                # Compare quantities (guarded)
-                receipt_qty = _safe_float(receipt_item.get('quantity', 0), 'quantity', context=receipt_item.get('name'))
-                po_qty = _safe_float(matched_po_item.get('quantity', 0), 'quantity', context=matched_po_item.get('name'))
-
-                if receipt_qty != po_qty:
-                    discrepancies.append({
-                        'type': 'QUANTITY_MISMATCH',
-                        'severity': 'MEDIUM',
-                        'field': 'quantity',
-                        'item_name': receipt_item.get('name'),
-                        'expected': po_qty,
-                        'actual': receipt_qty,
-                        'message': f"Quantity mismatch for '{receipt_item.get('name')}'"
-                    })
-                    is_valid = False  # Mark invalid on quantity mismatch
-
-                # Compare unit prices with tolerance (guarded)
-                receipt_price = _safe_float(receipt_item.get('unit_price', 0), 'unit_price', context=receipt_item.get('name'))
-                po_price = _safe_float(matched_po_item.get('unit_price', 0), 'unit_price', context=matched_po_item.get('name'))
-
-                if receipt_price > 0 and po_price > 0:
-                    price_diff = abs(receipt_price - po_price)
-                    price_tolerance = po_price * (self.tolerance_percentage / 100)
-
-                    if price_diff > price_tolerance:
-                        discrepancies.append({
-                            'type': 'PRICE_MISMATCH',
-                            'severity': 'MEDIUM',
-                            'field': 'unit_price',
-                            'item_name': receipt_item.get('name'),
-                            'expected': po_price,
-                            'actual': receipt_price,
-                            'difference': price_diff,
-                            'tolerance': price_tolerance,
-                            'message': f"Price mismatch for '{receipt_item.get('name')}'"
-                        })
-                        is_valid = False  # Mark invalid on price mismatch
-
-        # Check for missing items (items in PO but not in receipt)
-        # Build receipt_item_names from valid named items
-        receipt_item_names = []
-        for item in receipt_items:
-            item_name = item.get('name', '')
-            if isinstance(item_name, str) and item_name.strip():
-                receipt_item_names.append(item_name.lower())
-        
-        for po_item_name_lower, po_item in po_items.items():
-            # Check if PO item is in receipt
-            found = any(po_item_name_lower in receipt_name or receipt_name in po_item_name_lower
-                       for receipt_name in receipt_item_names)
-
-            if not found:
-                discrepancies.append({
-                    'type': 'ITEM_MISSING_FROM_RECEIPT',
-                    'severity': 'HIGH',
-                    'field': 'items',
-                    'item_name': po_item.get('name', 'Unknown'),
-                    'message': f"Item '{po_item.get('name', 'Unknown')}' in PO but not found in receipt"
-                })
-                is_valid = False
-
-        # Build validation report
-        report = {
-            'is_valid': is_valid,
-            'validation_date': datetime.now().isoformat(),
-            'po_number': po_data.get('po_number'),
-            'receipt_number': receipt_data.get('receipt_number'),
-            'discrepancies_count': len(discrepancies),
-            'discrepancies': discrepancies,
-            'receipt_data': receipt_data,
-            'summary': self._generate_summary(discrepancies, is_valid)
-        }
-
-        return report
-
-    def _generate_summary(self, discrepancies: List[Dict], is_valid: bool) -> str:
-        """Generate human-readable validation summary."""
-        if is_valid:
-            return "Receipt validation passed. All items and amounts match the purchase order within acceptable tolerance."
-
-        high_severity = [d for d in discrepancies if d['severity'] == 'HIGH']
-        medium_severity = [d for d in discrepancies if d['severity'] == 'MEDIUM']
-
-        summary_parts = [
-            f"Receipt validation failed with {len(discrepancies)} discrepancies:"
-        ]
-
-        if high_severity:
-            summary_parts.append(f"- {len(high_severity)} high severity issues")
-        if medium_severity:
-            summary_parts.append(f"- {len(medium_severity)} medium severity issues")
-
-        return " ".join(summary_parts)
+        # Generate comprehensive report
+        return generate_validation_report(
+            is_valid=is_valid,
+            discrepancies=builder.get_discrepancies(),
+            receipt_data=receipt_data,
+            po_data=po_data
+        )
