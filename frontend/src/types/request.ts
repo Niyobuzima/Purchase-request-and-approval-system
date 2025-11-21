@@ -40,6 +40,71 @@ export interface ProformaData {
   payment_terms?: string;
 }
 
+export interface PurchaseOrderData {
+  po_number: string;
+  date: string;
+  request_id: string;
+  vendor: VendorInfo;
+  buyer: {
+    name: string;
+    address: string;
+    contact: string;
+    email: string;
+  };
+  items: RequestItem[];
+  subtotal: number;
+  tax: number;
+  total: number;
+  currency: string;
+  payment_terms: string;
+  delivery_terms: string;
+  approved_by: {
+    name: string;
+    email: string;
+    role: string;
+    date: string;
+  };
+  notes?: string;
+}
+
+export interface Discrepancy {
+  type: string;
+  severity: 'HIGH' | 'MEDIUM' | 'LOW';
+  field: string;
+  expected?: number | string;
+  actual?: number | string;
+  difference?: number;
+  tolerance?: number;
+  item_name?: string;
+  message: string;
+}
+
+export interface ReceiptValidation {
+  is_valid: boolean;
+  validation_date: string;
+  po_number?: string;
+  receipt_number?: string;
+  discrepancies_count: number;
+  discrepancies: Discrepancy[];
+  receipt_data?: {
+    vendor_name?: string;
+    receipt_number?: string;
+    date?: string;
+    items: RequestItem[];
+    subtotal: number;
+    tax: number;
+    total: number;
+    currency: string;
+  };
+  summary: string;
+  severity_breakdown?: {
+    HIGH: number;
+    MEDIUM: number;
+    LOW: number;
+  };
+  type_breakdown?: Record<string, number>;
+}
+
 export interface PurchaseRequest {
   id: string;
   title: string;
@@ -51,9 +116,9 @@ export interface PurchaseRequest {
   proforma_file?: string;
   proforma_extracted_data?: ProformaData;
   purchase_order_file?: string;
-  purchase_order_data?: any;
+  purchase_order_data?: PurchaseOrderData;
   receipt_file?: string;
-  receipt_validation?: any;
+  receipt_validation?: ReceiptValidation;
 }
 
 export interface CreateRequestData {

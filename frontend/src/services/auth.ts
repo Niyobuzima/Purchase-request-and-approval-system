@@ -20,14 +20,27 @@ export const authService = {
   async logout(): Promise<void> {
     const tokens = localStorage.getItem('auth_tokens');
     if (tokens) {
-      const { refresh } = JSON.parse(tokens);
       try {
-        await api.post('/auth/logout/', { refresh });
+        const parsed = JSON.parse(tokens);
+
+        // Validate that parsed value is an object with refresh property
+        if (parsed && typeof parsed === 'object' && typeof parsed.refresh === 'string' && parsed.refresh) {
+          try {
+            await api.post('/auth/logout/', { refresh: parsed.refresh });
+          } catch (error) {
+            // Ignore logout API errors
+            console.error('Logout API error:', error);
+          }
+        } else {
+          console.warn('Invalid token structure - missing refresh token');
+        }
       } catch (error) {
-        // Ignore logout errors
-        console.error('Logout error:', error);
+        // JSON parse error
+        console.warn('Failed to parse auth_tokens from localStorage:', error);
       }
     }
+
+    // Always clear local storage regardless of API call success
     localStorage.removeItem('auth_tokens');
     localStorage.removeItem('user');
   },
@@ -54,12 +67,30 @@ export const authService = {
 
   getTokens(): AuthTokens | null {
     const tokens = localStorage.getItem('auth_tokens');
-    return tokens ? JSON.parse(tokens) : null;
+    if (!tokens) return null;
+
+    try {
+      return JSON.parse(tokens);
+    } catch (error) {
+      console.warn('Failed to parse auth_tokens from localStorage:', error);
+      // Remove corrupted data
+      localStorage.removeItem('auth_tokens');
+      return null;
+    }
   },
 
   getUser(): User | null {
     const user = localStorage.getItem('user');
-    return user ? JSON.parse(user) : null;
+    if (!user) return null;
+
+    try {
+      return JSON.parse(user);
+    } catch (error) {
+      console.warn('Failed to parse user from localStorage:', error);
+      // Remove corrupted data
+      localStorage.removeItem('user');
+      return null;
+    }
   },
 
   clearAuth(): void {
