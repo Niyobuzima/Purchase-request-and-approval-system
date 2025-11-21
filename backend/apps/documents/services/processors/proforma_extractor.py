@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 class ProformaExtractor:
     """
-    Extracts structured data from proforma invoices using GPT-5 Vision.
+    Extracts structured data from proforma invoices using GPT-5.
     Supports both PDF and image formats with OCR fallback.
     """
 
