@@ -55,7 +55,7 @@ class ReceiptValidator:
             return validation_report
 
         except RuntimeError as e:
-            logger.error(f"Receipt extraction failed: {str(e)}")
+            logger.exception(f"Receipt extraction failed: {str(e)}")
             return {
                 'is_valid': False,
                 'error': f'Failed to extract receipt data: {str(e)}',
