@@ -28,9 +28,32 @@ def validate_uuid_param(param_value, param_name='request_id'):
     
     try:
         validated_uuid = UUID(param_value)
-        return validated_uuid, None
     except (ValueError, TypeError):
         return None, Response({
             'status': 'error',
             'message': f'Invalid {param_name} format. Must be a valid UUID.'
         }, status=status.HTTP_400_BAD_REQUEST)
+    else:
+        return validated_uuid, None
+
+
+def check_purchase_request_access(user, purchase_request, action='access'):
+    """
+    Check if user has access to a purchase request.
+    STAFF can only access their own requests.
+    Other roles (FINANCE, ADMIN) can access any request.
+    
+    Args:
+        user: The user attempting to access the request
+        purchase_request: The PurchaseRequest instance
+        action: The action being performed (for error message customization)
+    
+    Returns:
+        Response object with 403 status if access denied, None otherwise.
+    """
+    if user.role == 'STAFF' and purchase_request.created_by != user:
+        return Response({
+            'status': 'error',
+            'message': f'You do not have permission to {action} this request'
+        }, status=status.HTTP_403_FORBIDDEN)
+    return None

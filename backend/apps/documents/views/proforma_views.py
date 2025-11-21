@@ -14,7 +14,7 @@ from drf_yasg import openapi
 from apps.purchase_requests.models import PurchaseRequest
 from ..serializers import ProformaProcessingSerializer, ProformaDataSerializer
 from ..tasks import process_proforma_document
-from ..utils import validate_uuid_param
+from ..utils import validate_uuid_param, check_purchase_request_access
 
 logger = logging.getLogger(__name__)
 
@@ -62,11 +62,11 @@ def process_proforma(request):
         purchase_request = PurchaseRequest.objects.get(id=request_id)
 
         # Check access permission
-        if request.user.role == 'STAFF' and purchase_request.created_by != request.user:
-            return Response({
-                'status': 'error',
-                'message': 'You do not have permission to process this request'
-            }, status=status.HTTP_403_FORBIDDEN)
+        error_response = check_purchase_request_access(
+            request.user, purchase_request, 'process'
+        )
+        if error_response:
+            return error_response
 
         # Validate proforma file exists
         if not purchase_request.proforma_file:
@@ -130,11 +130,11 @@ def get_proforma_data(request):
         purchase_request = PurchaseRequest.objects.get(id=request_id)
 
         # Check access
-        if request.user.role == 'STAFF' and purchase_request.created_by != request.user:
-            return Response({
-                'status': 'error',
-                'message': 'You do not have permission to view this data'
-            }, status=status.HTTP_403_FORBIDDEN)
+        error_response = check_purchase_request_access(
+            request.user, purchase_request, 'view'
+        )
+        if error_response:
+            return error_response
 
         if not purchase_request.proforma_extracted_data:
             return Response({

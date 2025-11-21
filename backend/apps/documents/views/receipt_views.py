@@ -14,7 +14,7 @@ from drf_yasg import openapi
 from apps.purchase_requests.models import PurchaseRequest
 from ..serializers import ReceiptValidationSerializer, ValidationReportSerializer
 from ..tasks import validate_receipt
-from ..utils import validate_uuid_param
+from ..utils import validate_uuid_param, check_purchase_request_access
 
 logger = logging.getLogger(__name__)
 
@@ -62,11 +62,11 @@ def validate_receipt_api(request):
         purchase_request = PurchaseRequest.objects.get(id=request_id)
 
         # Check access
-        if request.user.role == 'STAFF' and purchase_request.created_by != request.user:
-            return Response({
-                'status': 'error',
-                'message': 'You do not have permission to validate receipt for this request'
-            }, status=status.HTTP_403_FORBIDDEN)
+        error_response = check_purchase_request_access(
+            request.user, purchase_request, 'validate receipt for'
+        )
+        if error_response:
+            return error_response
 
         # Validate receipt file exists
         if not purchase_request.receipt_file:
@@ -137,11 +137,11 @@ def get_validation_report(request):
         purchase_request = PurchaseRequest.objects.get(id=request_id)
 
         # Check access
-        if request.user.role == 'STAFF' and purchase_request.created_by != request.user:
-            return Response({
-                'status': 'error',
-                'message': 'You do not have permission to view this data'
-            }, status=status.HTTP_403_FORBIDDEN)
+        error_response = check_purchase_request_access(
+            request.user, purchase_request, 'view'
+        )
+        if error_response:
+            return error_response
 
         if not purchase_request.receipt_validation:
             return Response({
