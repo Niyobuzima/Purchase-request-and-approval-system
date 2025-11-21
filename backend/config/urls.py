@@ -42,7 +42,7 @@ urlpatterns = [
     path('api/auth/', include('apps.accounts.urls')),
     path('api/', include('apps.purchase_requests.urls')),
     path('api/', include('apps.approvals.urls')),
-    # path('api/documents/', include('apps.documents.urls')),
+    path('api/', include('apps.documents.urls')),
 ]
 
 # Serve media files in development
